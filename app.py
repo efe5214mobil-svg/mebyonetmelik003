@@ -104,6 +104,10 @@ def ask_asistant(v_db, query):
 
 # --if v_db:
     # Session state kontrolü ve mesajların saklanması
+
+- SOHBET AKIŞI ---
+v_db = load_existing_vector_db()
+
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
@@ -122,6 +126,3 @@ def ask_asistant(v_db, query):
             response = ask_asistant(v_db, prompt)
             st.markdown(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
-- SOHBET AKIŞI ---
-v_db = load_existing_vector_db()
-
