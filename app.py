@@ -102,10 +102,7 @@ def ask_asistant(v_db, query):
     )
     return chat.choices[0].message.content
 
-# --- SOHBET AKIŞI ---
-v_db = load_existing_vector_db()
-
-if v_db:
+# --if v_db:
     # Session state kontrolü ve mesajların saklanması
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -125,3 +122,6 @@ if v_db:
             response = ask_asistant(v_db, prompt)
             st.markdown(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
+- SOHBET AKIŞI ---
+v_db = load_existing_vector_db()
+
