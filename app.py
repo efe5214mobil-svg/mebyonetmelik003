@@ -105,23 +105,30 @@ def ask_asistant(v_db, query):
 # --- SOHBET AKIŞI ---
 v_db = load_existing_vector_db()
 
-if v_db:
-    # Session state kontrolü ve mesajların saklanması
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# Mesaj geçmişini başlat (v_db'den bağımsız)
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-    # Eski mesajları ekrana bas
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+# Eski mesajları ekrana bas
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-    # Yeni soru girişi
-    if prompt := st.chat_input("Yönetmelik hakkında bir soru sorun..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+# Giriş alanı (Her zaman görünür)
+prompt = st.chat_input("Yönetmelik hakkında bir soru sorun...")
 
-        with st.chat_message("assistant"):
+if prompt:
+    # Kullanıcı mesajını ekle ve göster
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # Cevap üretme kısmı
+    with st.chat_message("assistant"):
+        if v_db is not None:
             response = ask_asistant(v_db, prompt)
             st.markdown(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+            st.session_state.messages.append({"role": "assistant", "content": response})
+        else:
+            error_msg = "Veritabanı yüklenemediği için şu an cevap veremiyorum. Lütfen klasör yolunu kontrol edin."
+            st.error(error_msg)
