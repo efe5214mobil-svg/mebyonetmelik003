@@ -11,30 +11,124 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="OKUL ARKADAŞIM", page_icon="🏛️", layout="wide")
 
-# --- CUSTOM CSS (Görsel Tasarım İçin) ---
+# --- CSS ---
 st.markdown("""
-    <style>
-    .main { background-color: #0e1117; }
-    .stTitle { color: white; text-align: center; font-size: 3rem !important; margin-bottom: 20px; }
-    .card {
-        background-color: #1a1c24;
-        border-radius: 15px;
-        padding: 20px;
-        height: 250px;
-        border-top: 5px solid;
-        margin-bottom: 20px;
-    }
-    .card-red { border-color: #ff4b4b; }
-    .card-blue { border-color: #0083ff; }
-    .card-green { border-color: #00d488; }
-    .card h3 { color: white; margin-bottom: 15px; font-size: 1.2rem; }
-    .card ul { color: #a3a8b4; list-style-type: none; padding: 0; font-size: 0.9rem; }
-    .card li { margin-bottom: 8px; }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+.main { background-color: #0e1117; }
+.stTitle { color: white; text-align: center; font-size: 3rem !important; margin-bottom: 20px; }
+.card {
+    background-color: #1a1c24;
+    border-radius: 15px;
+    padding: 20px;
+    height: 250px;
+    border-top: 5px solid;
+    margin-bottom: 20px;
+}
+.card-red { border-color: #ff4b4b; }
+.card-blue { border-color: #0083ff; }
+.card-green { border-color: #00d488; }
+.card h3 { color: white; margin-bottom: 15px; font-size: 1.2rem; }
+.card ul { color: #a3a8b4; list-style-type: none; padding: 0; font-size: 0.9rem; }
+.card li { margin-bottom: 8px; }
+</style>
+""", unsafe_allow_html=True)
 
 # --- BAŞLIK ---
-st.markdown("<h1 class='stTitle'>🏛️OKUL ARKADAŞIM</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='stTitle'>🏛️ OKUL ARKADAŞIM</h1>", unsafe_allow_html=True)
+
+# --- API KEY KONTROL ---
+if "GROQ_API_KEY" not in st.secrets:
+    st.error("GROQ_API_KEY bulunamadı!")
+    st.stop()
+
+# --- KARTLAR ---
+st.markdown("### 💡 Hızlı Sorular")
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.markdown("""<div class="card card-red"><h3>📜 Kayıt & Disiplin</h3><ul>
+    <li>• Disiplin cezaları nelerdir?</li>
+    <li>• Kayıt işlemleri nasıl yapılır?</li>
+    <li>• Kınama cezası dosyaya işlenir mi?</li></ul></div>""", unsafe_allow_html=True)
+
+with col2:
+    st.markdown("""<div class="card card-blue"><h3>⌛ Devamsızlık</h3><ul>
+    <li>• 10/30 gün kuralı nedir?</li>
+    <li>• 8 gün devamsızlıkla belge alınır mı?</li>
+    <li>• 11 gün özürsüz devamsızlıkta kalınır mı?</li></ul></div>""", unsafe_allow_html=True)
+
+with col3:
+    st.markdown("""<div class="card card-green"><h3>🎓 Başarı</h3><ul>
+    <li>• Teşekkür kaç puan?</li>
+    <li>• 48 ortalama ile geçilir mi?</li>
+    <li>• 86 ortalama takdir alır mı?</li></ul></div>""", unsafe_allow_html=True)
+
+st.markdown("---")
+
+# --- VECTOR DB YÜKLEME ---
+@st.cache_resource
+def load_db():
+    path = "okul_asistani_v2_db"
+    if not os.path.exists(path):
+        return None
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    return Chroma(persist_directory=path, embedding_function=embeddings)
+
+v_db = load_db()
+
+# --- CEVAP FONKSİYONU ---
+def ask(v_db, query):
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+    if v_db:
+        docs = v_db.similarity_search(query, k=5)
+        baglam = "\n\n".join([d.page_content for d in docs])
+    else:
+        baglam = "Veri yok"
+
+    system_msg = """ÇOK kısa cevap ver (max 2 cümle).
+Kurallar:
+- 50 ve üzeri geçer
+- 3'ten fazla zayıf kalır
+- Teşekkür 70-84, Takdir 85+
+- Devamsızlık belgeye engel değil"""
+
+    chat = client.chat.completions.create(
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": f"{baglam}\nSoru: {query}"}
+        ],
+        model="llama-3.1-8b-instant",
+        temperature=0
+    )
+
+    return chat.choices[0].message.content
+
+# --- CHAT SİSTEMİ ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Eski mesajlar
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# INPUT (HER ZAMAN GÖRÜNÜR)
+if prompt := st.chat_input("Sorunu yaz..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        response = ask(v_db, prompt)
+        st.markdown(response)
+
+    st.session_state.messages.append({"role": "assistant", "content": response})
+
+# --- ALT UYARI ---
+if not v_db:
+    st.warning("⚠️ Vector veritabanı yok, sistem sınırlı çalışıyor.")st.markdown("<h1 class='stTitle'>🏛️OKUL ARKADAŞIM</h1>", unsafe_allow_html=True)
 
 # --- SECRETS KONTROLÜ ---
 if "GROQ_API_KEY" not in st.secrets:
