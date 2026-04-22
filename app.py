@@ -34,7 +34,106 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- BAŞLIK ---
-st.markdown("<h1 class='stTitle'>🏛️ OKUL ARKADAŞIM</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='stTitle'>🏛️OKUL ARKADAŞIM</h1>", unsafe_allow_html=True)
+
+# --- API KEY ---
+if "GROQ_API_KEY" not in st.secrets:
+    st.error("Hata: GROQ_API_KEY bulunamadı!")
+    st.stop()
+
+# --- KARTLAR ---
+st.markdown("### 💡 Hızlı Sorular")
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.markdown("""<div class="card card-red"><h3>📜 Kayıt & Disiplin</h3><ul>
+    <li>• Disiplin cezaları nelerdir?</li>
+    <li>• Kayıt işlemleri nasıl yapılır?</li>
+    <li>• Kınama cezası dosyaya işlenir mi?</li></ul></div>""", unsafe_allow_html=True)
+
+with col2:
+    st.markdown("""<div class="card card-blue"><h3>⌛ Devamsızlık</h3><ul>
+    <li>• 10/30 gün kuralı nedir?</li>
+    <li>• Ortalamam 75 ve 8 gün devamsızlıkla belge alabilir miyim?</li>
+    <li>• 11 gün özürsüz devamsızlıkta kalır mıyım?</li></ul></div>""", unsafe_allow_html=True)
+
+with col3:
+    st.markdown("""<div class="card card-green"><h3>🎓 Başarı</h3><ul>
+    <li>• Teşekkür belgesi kaç puan?</li>
+    <li>• 48 ortalama ile geçilir mi?</li>
+    <li>• 86 ortalama takdir alır mı?</li></ul></div>""", unsafe_allow_html=True)
+
+st.markdown("---")
+
+# --- VECTOR DB ---
+@st.cache_resource
+def load_existing_vector_db():
+    persist_dir = "okul_asistani_v2_db"
+    if not os.path.exists(persist_dir):
+        return None
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    return Chroma(persist_directory=persist_dir, embedding_function=embeddings)
+
+v_db = load_existing_vector_db()
+
+# --- AI CEVAP ---
+def ask_asistant(v_db, query):
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+    if v_db:
+        docs = v_db.similarity_search(query, k=5)
+        baglam = "\n\n".join([doc.page_content for doc in docs])
+    else:
+        baglam = "Veri bulunamadı"
+
+    system_msg = """Sen MEB Mevzuat Asistanısın. Yanıtların ÇOK KISA (en fazla 2 cümle) ve NET olmalı.
+ASLA DEĞİŞMEZ ANALİZ KURALLARI:
+1. SORUMLULUK: Sorumluluk sınavı geçme puanı 50'dir.
+2. MANTIK: 8 sayısı 10'dan küçüktür; 8 gün devamsızlıkla kalınmaz.
+3. GÜNCEL: Devamsızlık artık başarı belgesi almaya engel DEĞİLDİR.
+4. RAPOR: Hastane raporları 'Özürlü' devamsızlıktır.
+5. SINIF GEÇME: 3 dersten fazla zayıfı olan KALIR.
+6. MATEMATİK: Ortalama 50+ ise "Evet geçebilirsin" diye başla.
+7. BELGE: Teşekkür 70-84.99, Takdir 85+
+8. 50 ve üzeri not alan GEÇER.
+9. Çelişki varsa 50 kuralını uygula.
+TALİMAT: Sadece cevabı ver."""
+
+    chat = client.chat.completions.create(
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": f"Bağlam: {baglam}\n\nSoru: {query}"}
+        ],
+        model="llama-3.1-8b-instant",
+        temperature=0
+    )
+
+    return chat.choices[0].message.content
+
+# --- CHAT ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# INPUT HER ZAMAN VAR
+if prompt := st.chat_input("Yönetmelik hakkında bir soru sorun..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        response = ask_asistant(v_db, prompt)
+        st.markdown(response)
+
+    st.session_state.messages.append({"role": "assistant", "content": response})
+
+# --- UYARI ---
+if not v_db:
+    st.warning("⚠️ Vector veritabanı bulunamadı. Sistem sınırlı çalışıyor.")st.markdown("<h1 class='stTitle'>🏛️ OKUL ARKADAŞIM</h1>", unsafe_allow_html=True)
 
 # --- API KEY KONTROL ---
 if "GROQ_API_KEY" not in st.secrets:
