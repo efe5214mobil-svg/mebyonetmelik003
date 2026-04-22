@@ -9,3 +9,4 @@ chromadb
 sentence-transformers
 groq
 pysqlite3-binary
+torchvision
