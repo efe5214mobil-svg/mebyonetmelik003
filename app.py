@@ -105,9 +105,10 @@ def ask_asistant(v_db, query):
 # --if v_db:
     # Session state kontrolü ve mesajların saklanması
 
-- SOHBET AKIŞI ---
+
 v_db = load_existing_vector_db()
 
+if v_db:
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
@@ -116,13 +117,19 @@ v_db = load_existing_vector_db()
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Yeni soru girişi
+    # Yeni soru girişi (YAZI YAZMA YERİ BURASI)
     if prompt := st.chat_input("Yönetmelik hakkında bir soru sorun..."):
+        # Kullanıcı mesajını ekle
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
+        # Asistan yanıtını oluştur
         with st.chat_message("assistant"):
             response = ask_asistant(v_db, prompt)
             st.markdown(response)
+        
+        # Yanıtı geçmişe ekle
         st.session_state.messages.append({"role": "assistant", "content": response})
+else:
+    st.warning("Vektör veritabanı yüklenemediği için sohbet başlatılamıyor.")
